@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+<head>
+<title>Random SVG Images</title>
+<style>
+  #background {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: -1;
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+  }
+  html, body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+  }
+  #image-container {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    justify-content: center;
+    align-items: center;
+  }
+  img {
+    width: 100%;
+    height: 20%;
+    object-fit: cover;
+  }
+  #popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    display: none;
+    z-index: 100;
+  }
+  .key {
+    display: inline-block;
+    padding: 2px 6px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    background-color: #f7f7f7;
+    color: #333;
+    font-family: monospace;
+    font-size: 0.9em;
+    box-shadow: 1px 1px 1px #ccc;
+  }
+</style>
+</head>
+<body>
+
+<div id="background"></div>
+<div id="image-container"></div>
+<div id="popup">
+  <h2>Keyboard Shortcuts</h2>
+  <ul>
+    <li><kbd class="key">Space</kbd> Random image</li>
+    <li><kbd class="key">Enter</kbd> Replace a random section</li>
+    <li><kbd class="key">1</kbd>-<kbd class="key">5</kbd> Show original images</li>
+    <li><kbd class="key">j</kbd> Previous original image</li>
+    <li><kbd class="key">k</kbd> Next original image</li>
+    <li><kbd class="key">p</kbd>, <kbd class="key">&larr;</kbd> Previous image in history</li>
+    <li><kbd class="key">n</kbd>, <kbd class="key">&rarr;</kbd> Next image in history</li>
+    <li><kbd class="key">?</kbd> Show this help</li>
+  </ul>
+</div>
+
+<script>
+const imageDataByDir = [
+  {
+    name: 'Boy',
+    top: 'SVG/Boy/top.svg',
+    eyes: 'SVG/Boy/eyes.svg',
+    nose: 'SVG/Boy/nose.svg',
+    mouth: 'SVG/Boy/mouth.svg',
+    neck: 'SVG/Boy/neck.svg',
+    bg: 'SVG/Boy/bg.svg'
+  },
+  {
+    name: 'Cat',
+    top: 'SVG/Cat/top.svg',
+    eyes: 'SVG/Cat/eyes.svg',
+    nose: 'SVG/Cat/nose.svg',
+    mouth: 'SVG/Cat/mouth.svg',
+    neck: 'SVG/Cat/neck.svg',
+    bg: 'SVG/Cat/bg.svg'
+  },
+  {
+    name: 'Clown',
+    top: 'SVG/Clown/top.svg',
+    eyes: 'SVG/Clown/eyes.svg',
+    nose: 'SVG/Clown/nose.svg',
+    mouth: 'SVG/Clown/mouth.svg',
+    neck: 'SVG/Clown/neck.svg',
+    bg: 'SVG/Clown/bg.svg'
+  },
+  {
+    name: 'Frog',
+    top: 'SVG/Frog/top.svg',
+    eyes: 'SVG/Frog/eye.svg',
+    nose: 'SVG/Frog/nose.svg',
+    mouth: 'SVG/Frog/mouth.svg',
+    neck: 'SVG/Frog/neck.svg',
+    bg: 'SVG/Frog/bg.svg'
+  },
+  {
+    name: 'Owl',
+    top: 'SVG/Owl/top.svg',
+    eyes: 'SVG/Owl/eyes.svg',
+    nose: 'SVG/Owl/nose.svg',
+    mouth: 'SVG/Owl/mouth.svg',
+    neck: 'SVG/Owl/neck.svg',
+    bg: 'SVG/Owl/bg.svg'
+  }
+];
+
+const imageContainer = document.getElementById('image-container');
+const sections = ['top', 'eyes', 'nose', 'mouth', 'neck'];
+let currentDirIndex = -1; // -1 for random
+let history = [];
+let historyIndex = -1;
+
+function setBackground(imageSrc) {
+  document.getElementById('background').style.backgroundImage = `url('${imageSrc}')`;
+}
+
+function drawImages(images) {
+  imageContainer.innerHTML = '';
+  images.forEach(imageSrc => {
+    const img = document.createElement('img');
+    img.src = imageSrc;
+    imageContainer.appendChild(img);
+  });
+}
+
+function updateHistory(newImages) {
+  if (historyIndex < history.length - 1) {
+    history = history.slice(0, historyIndex + 1);
+  }
+  history.push(newImages);
+  historyIndex = history.length - 1;
+  encodeStateToHash(newImages);
+}
+
+function encodeStateToHash(images) {
+  const dirNameRegex = /SVG\/([^/]+)\//;
+  const dirIndices = images.map(imageSrc => {
+    const match = imageSrc.match(dirNameRegex);
+    if (match && match[1]) {
+      const dirName = match[1];
+      return imageDataByDir.findIndex(dir => dir.name === dirName);
+    }
+    return -1; // Should not happen
+  });
+  window.location.hash = dirIndices.join('-');
+}
+
+function decodeStateFromHash() {
+  const hash = window.location.hash.substring(1);
+  if (hash) {
+    const dirIndices = hash.split('-').map(Number);
+    if (dirIndices.length === sections.length && dirIndices.every(index => index >= 0 && index < imageDataByDir.length)) {
+      const newImages = dirIndices.map((dirIndex, sectionIndex) => {
+        const section = sections[sectionIndex];
+        return imageDataByDir[dirIndex][section];
+      });
+      drawImages(newImages);
+      setBackground(getMajorityBg(newImages));
+      // Do not update history here, as it's a navigation event
+      return true;
+    }
+  }
+  return false;
+}
+
+function getMajorityBg(images) {
+    const dirCounts = {};
+    const dirNameRegex = /SVG\/([^/]+)\//;
+    images.forEach(imageSrc => {
+        const match = imageSrc.match(dirNameRegex);
+        if (match && match[1]) {
+            const dirName = match[1];
+            dirCounts[dirName] = (dirCounts[dirName] || 0) + 1;
+        }
+    });
+
+    let maxCount = 0;
+    let majorityDirs = [];
+    for (const dirName in dirCounts) {
+        if (dirCounts[dirName] > maxCount) {
+            maxCount = dirCounts[dirName];
+            majorityDirs = [dirName];
+        } else if (dirCounts[dirName] === maxCount) {
+            majorityDirs.push(dirName);
+        }
+    }
+
+    if (majorityDirs.length > 0) {
+        const randomDirName = majorityDirs[Math.floor(Math.random() * majorityDirs.length)];
+        const dirData = imageDataByDir.find(dir => dir.name === randomDirName);
+        return dirData.bg;
+    }
+    // Return a default background if no majority is found
+    return imageDataByDir[0].bg;
+}
+
+function replaceRandomSection() {
+  const currentImages = Array.from(imageContainer.children).map(img => img.src);
+  const sectionIndexToReplace = Math.floor(Math.random() * sections.length);
+  const sectionToReplace = sections[sectionIndexToReplace];
+
+  const currentImageSrc = currentImages[sectionIndexToReplace];
+  const dirNameRegex = /SVG\/([^/]+)\//;
+  const match = currentImageSrc.match(dirNameRegex);
+  const currentDirName = match ? match[1] : null;
+
+  let newImageSrc;
+  let newDirName;
+  do {
+    const randomDirIndex = Math.floor(Math.random() * imageDataByDir.length);
+    const randomDirData = imageDataByDir[randomDirIndex];
+    newImageSrc = randomDirData[sectionToReplace];
+    const newMatch = newImageSrc.match(dirNameRegex);
+    newDirName = newMatch ? newMatch[1] : null;
+  } while (newDirName === currentDirName);
+
+  currentImages[sectionIndexToReplace] = newImageSrc;
+  drawImages(currentImages);
+  setBackground(getMajorityBg(currentImages));
+  updateHistory(currentImages);
+}
+
+function drawRandomImages() {
+  currentDirIndex = -1;
+  const newImages = [];
+  sections.forEach(section => {
+    const images = imageDataByDir.map(dir => dir[section]);
+    if (images && images.length > 0) {
+      const randomIndex = Math.floor(Math.random() * images.length);
+      newImages.push(images[randomIndex]);
+    }
+  });
+  drawImages(newImages);
+  setBackground(getMajorityBg(newImages));
+  updateHistory(newImages);
+}
+
+function drawImagesFromDirectory(dirIndex) {
+  currentDirIndex = dirIndex;
+  const dirData = imageDataByDir[dirIndex];
+  if (dirData) {
+    const newImages = sections.map(section => dirData[section]);
+    drawImages(newImages);
+    setBackground(dirData.bg);
+    updateHistory(newImages);
+  }
+}
+
+function handleDirectoryNavigation(direction) {
+  if (direction === 'forward') {
+    if (currentDirIndex === -1) {
+      currentDirIndex = 0;
+    } else {
+      currentDirIndex = (currentDirIndex + 1) % imageDataByDir.length;
+    }
+    drawImagesFromDirectory(currentDirIndex);
+  } else if (direction === 'backward') {
+    if (currentDirIndex === -1) {
+      currentDirIndex = 0;
+    } else {
+      currentDirIndex = (currentDirIndex - 1 + imageDataByDir.length) % imageDataByDir.length;
+    }
+    drawImagesFromDirectory(currentDirIndex);
+  }
+}
+
+function handleHistoryNavigation(direction) {
+  if (direction === 'forward') {
+    if (historyIndex < history.length - 1) {
+      historyIndex++;
+      const images = history[historyIndex];
+      drawImages(images);
+      setBackground(getMajorityBg(images));
+      encodeStateToHash(images);
+    } else {
+      drawRandomImages();
+    }
+  } else if (direction === 'backward') {
+    if (historyIndex > 0) {
+      historyIndex--;
+      const images = history[historyIndex];
+      drawImages(images);
+      setBackground(getMajorityBg(images));
+      encodeStateToHash(images);
+    }
+  }
+}
+
+document.addEventListener('keydown', (event) => {
+  const popup = document.getElementById('popup');
+  if (event.key === '?') {
+    popup.style.display = popup.style.display === 'block' ? 'none' : 'block';
+    return;
+  }
+
+  if (popup.style.display === 'block') {
+    popup.style.display = 'none';
+    return;
+  }
+
+  if (event.key === ' ') {
+    drawRandomImages();
+  } else if (event.key === 'Enter') {
+    replaceRandomSection();
+  } else if (event.key >= '1' && event.key <= '5') {
+    drawImagesFromDirectory(parseInt(event.key) - 1);
+  } else if (event.key === 'k') {
+    handleDirectoryNavigation('forward');
+  } else if (event.key === 'j') {
+    handleDirectoryNavigation('backward');
+  } else if (event.key === 'ArrowRight' || event.key === 'n') {
+    handleHistoryNavigation('forward');
+  } else if (event.key === 'ArrowLeft' || event.key === 'p') {
+    handleHistoryNavigation('backward');
+  }
+});
+
+document.addEventListener('click', () => {
+  const popup = document.getElementById('popup');
+  if (popup.style.display === 'block') {
+    popup.style.display = 'none';
+  }
+});
+
+document.addEventListener('touchend', () => {
+  const popup = document.getElementById('popup');
+  if (popup.style.display === 'block') {
+    popup.style.display = 'none';
+    return;
+  }
+  drawRandomImages();
+});
+
+window.addEventListener('hashchange', decodeStateFromHash);
+
+if (!decodeStateFromHash()) {
+  drawRandomImages();
+}
+</script>
+
+</body>
+</html>
